@@ -19,6 +19,7 @@
 #include "driverlib/interrupt.h"
 #include "driverlib/adc.h"
 #include "driverlib/timer.h"
+#include "drivers/buttons.h"
 #include "utils/uartstdio.h"
 #include "drivers/buttons.h"
 #include "FreeRTOS.h"
@@ -175,25 +176,86 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                 }
         }
         break;
-//        case MESSAGE_LED_PWM_BRIGHTNESS:
-//        {
-//            MESSAGE_LED_PWM_BRIGHTNESS_PARAMETER parametro;
-//
-//            if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
-//            {
-//                RGBIntensitySet(parametro.rIntensity);
-//            }
-//            else
-//            {
-//                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
-//            }
-//        }
+        case MESSAGE_LED_PWM_BRIGHTNESS:
+        {
+            MESSAGE_LED_PWM_BRIGHTNESS_PARAMETER parametro;
+
+            if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+            {
+                RGBIntensitySet(parametro.rIntensity);
+            }
+            else
+            {
+                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+            }
+        }
         break;
         case MESSAGE_ADC_SAMPLE:
         {
             configADC_DisparaADC(); //Dispara la conversion (por software)
         }
         break;
+        case MESSAGE_MODE:
+        {
+            MESSAGE_MODE_PARAMETER parametro;
+            if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+            {
+                if(parametro.index == 0)
+                {
+                    RGBDisable();
+                    GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3);
+                }else if(parametro.index == 1){
+                    RGBEnable();
+                }
+            }
+            else
+            {
+                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+            }
+        }
+        break;
+        case MESSAGE_COLOR:
+        {
+            MESSAGE_COLOR_PARAMETER parametro;
+            uint32_t arrayRGB[3];
+            if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+            {
+                arrayRGB[0]=(uint16_t) parametro.red << 8;
+                arrayRGB[1]=(uint16_t) parametro.green << 8;
+                arrayRGB[2]=(uint16_t) parametro.blue << 8;
+                RGBColorSet(arrayRGB);
+            }
+            else
+            {
+                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+            }
+        }
+       break;
+
+       case MESSAGE_BUTTON:
+       {
+           MESSAGE_BUTTON_PARAMETER parametro;
+           uint32_t state = GPIOPinRead(GPIO_PORTF_BASE,GPIO_PIN_0 | GPIO_PIN_4);
+           if(!(state & GPIO_PIN_0))
+           {
+               parametro.right_button = true;
+
+           }else{
+               parametro.right_button = false;
+           }
+
+           if(!(state & GPIO_PIN_4))
+           {
+               parametro.left_button = true;
+           }else{
+               parametro.left_button = false;
+           }
+
+           status=remotelink_sendMessage(MESSAGE_BUTTON,&parametro,sizeof(parametro));
+       }
+       break;
+
+
        default:
            //mensaje desconocido/no implementado
            status=PROT_ERROR_UNIMPLEMENTED_COMMAND; //Devuelve error.
@@ -240,6 +302,9 @@ int main(void)
 
 	//Volvemos a configurar los LEDs en modo GPIO POR Defecto
 	MAP_GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3);
+
+	ButtonsInit();
+	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOF);
 
 
 	/********************************      Creacion de tareas *********************/

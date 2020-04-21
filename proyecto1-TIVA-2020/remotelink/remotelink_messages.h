@@ -18,6 +18,9 @@ typedef enum {
     MESSAGE_LED_GPIO,
     MESSAGE_LED_PWM_BRIGHTNESS,
     MESSAGE_ADC_SAMPLE,
+    MESSAGE_COLOR,
+    MESSAGE_MODE,
+    MESSAGE_BUTTON,
     //etc, etc...
 } messageTypes;
 
@@ -51,6 +54,24 @@ typedef struct
     uint16_t chan3;
     uint16_t chan4;
 } MESSAGE_ADC_SAMPLE_PARAMETER;
+
+typedef struct
+{
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+}MESSAGE_COLOR_PARAMETER;
+
+typedef struct
+{
+    uint8_t index;
+}MESSAGE_MODE_PARAMETER;
+
+typedef struct
+{
+    bool left_button;
+    bool right_button;
+} MESSAGE_BUTTON_PARAMETER;
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.
 
