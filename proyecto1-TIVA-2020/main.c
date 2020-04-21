@@ -31,6 +31,7 @@
 #include "drivers/rgb.h"
 #include "drivers/configADC.h"
 #include "commands.h"
+#include "semphr.h"
 
 #include <remotelink.h>
 #include <serialprotocol.h>
@@ -47,6 +48,10 @@
 //Globales
 uint32_t g_ui32CPUUsage;
 uint32_t g_ulSystemClock;
+
+
+
+SemaphoreHandle_t semaforo = NULL;
 
 //*****************************************************************************
 //
@@ -145,6 +150,37 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
 
         //Encia el mensaje hacia QT
         remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
+    }
+}
+
+static portTASK_FUNCTION(ButtonTask,pvParameters)
+{
+    MESSAGE_BUTTON_PARAMETER parametro;
+    uint32_t state;
+    //
+    // Bucle infinito, las tareas en FreeRTOS no pueden "acabar", deben "matarse" con la funcion xTaskDelete().
+    //
+    while(1)
+    {
+        xSemaphoreTake(semaforo,portMAX_DELAY);
+        state = GPIOPinRead(GPIO_PORTF_BASE,GPIO_PIN_0 | GPIO_PIN_4);
+
+        if(!(state & GPIO_PIN_0))
+        {
+            parametro.right_button=true;
+        }else
+        {
+            parametro.right_button=false;
+        }
+
+        if(!(state & GPIO_PIN_4))
+        {
+            parametro.left_button=true;
+        }else
+        {
+            parametro.left_button=false;
+        }
+        remotelink_sendMessage(MESSAGE_BUTTON,(void *)&parametro,sizeof(parametro));
     }
 }
 
@@ -255,6 +291,24 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
        }
        break;
 
+       case MESSAGE_BUTTON_MODE:
+       {
+           MESSAGE_BUTTON_MODE_PARAMETER parametro;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               if(parametro.mode)
+               {
+                   IntEnable(INT_GPIOF);
+               }else
+               {
+                   IntDisable(INT_GPIOF);
+               }
+           }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
 
        default:
            //mensaje desconocido/no implementado
@@ -305,12 +359,25 @@ int main(void)
 
 	ButtonsInit();
 	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOF);
+	GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
+	GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0,GPIO_BOTH_EDGES);
+	GPIOIntEnable(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
+	IntPrioritySet(INT_GPIOF, configMAX_SYSCALL_INTERRUPT_PRIORITY);
+	IntMasterEnable();
+
+	semaforo = xSemaphoreCreateBinary();
 
 
 	/********************************      Creacion de tareas *********************/
 
 	//Tarea del interprete de comandos (commands.c)
     if (initCommandLine(COMMAND_TASK_STACK,COMMAND_TASK_PRIORITY) != pdTRUE)
+    {
+        while(1);
+    }
+
+    //Tarea de gestión de la interrupción de botones
+    if((xTaskCreate(ButtonTask, (portCHAR *)"Button", ADC_TASK_STACK,NULL,ADC_TASK_PRIORITY, NULL) != pdTRUE))
     {
         while(1);
     }
@@ -331,6 +398,8 @@ int main(void)
     }
 
 
+
+
 	//
 	// Arranca el  scheduler.  Pasamos a ejecutar las tareas que se hayan activado.
 	//
@@ -341,5 +410,16 @@ int main(void)
 	{
 		//Si llego aqui es que algo raro ha pasado
 	}
+}
+
+
+void RutinaBotones(void)
+{
+    BaseType_t HigherPriorityTaskWoken = pdFALSE;
+
+    xSemaphoreGiveFromISR(semaforo,&HigherPriorityTaskWoken);
+
+    GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
+
 }
 

@@ -21,6 +21,7 @@ typedef enum {
     MESSAGE_COLOR,
     MESSAGE_MODE,
     MESSAGE_BUTTON,
+    MESSAGE_BUTTON_MODE,
     //etc, etc...
 } messageTypes;
 
@@ -72,6 +73,11 @@ typedef struct
     bool left_button;
     bool right_button;
 } MESSAGE_BUTTON_PARAMETER;
+
+typedef struct
+{
+    bool mode;
+}MESSAGE_BUTTON_MODE_PARAMETER;
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.
 
