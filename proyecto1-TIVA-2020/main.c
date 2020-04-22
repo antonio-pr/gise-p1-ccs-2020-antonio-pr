@@ -44,6 +44,8 @@
 #define COMMAND_TASK_PRIORITY (tskIDLE_PRIORITY+1)
 #define ADC_TASK_STACK (256)
 #define ADC_TASK_PRIORITY (tskIDLE_PRIORITY+1)
+#define BUTTON_TASK_STACK (256)
+#define BUTTON_TASK_PRIORITY (tskIDLE_PRIORITY+1)
 
 //Globales
 uint32_t g_ui32CPUUsage;
@@ -298,6 +300,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            {
                if(parametro.mode)
                {
+                   GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
                    IntEnable(INT_GPIOF);
                }else
                {
@@ -377,7 +380,7 @@ int main(void)
     }
 
     //Tarea de gestión de la interrupción de botones
-    if((xTaskCreate(ButtonTask, (portCHAR *)"Button", ADC_TASK_STACK,NULL,ADC_TASK_PRIORITY, NULL) != pdTRUE))
+    if((xTaskCreate(ButtonTask, (portCHAR *)"Button", BUTTON_TASK_STACK,NULL,BUTTON_TASK_PRIORITY, NULL) != pdTRUE))
     {
         while(1);
     }
@@ -421,5 +424,6 @@ void RutinaBotones(void)
 
     GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
 
+    portEND_SWITCHING_ISR(HigherPriorityTaskWoken);
 }
 
