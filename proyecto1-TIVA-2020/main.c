@@ -149,6 +149,8 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
         parameter.chan2=muestras.chan2;
         parameter.chan3=muestras.chan3;
         parameter.chan4=muestras.chan4;
+        parameter.chan5=muestras.chan5;
+        parameter.chan6=muestras.chan6;
 
         //Encia el mensaje hacia QT
         remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
@@ -330,7 +332,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
 //*****************************************************************************
 int main(void)
 {
-
+    uint32_t ui32Period;
 	//
 	// Set the clocking to run at 40 MHz from the PLL.
 	//
@@ -360,6 +362,18 @@ int main(void)
 	//Volvemos a configurar los LEDs en modo GPIO POR Defecto
 	MAP_GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3);
 
+	//Configuración del TIMER2
+	SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER2);
+	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_TIMER2);
+	TimerConfigure(TIMER2_BASE, TIMER_CFG_PERIODIC);
+
+	ui32Period = SysCtlClockGet();
+	TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
+	//TimerEnable(TIMER2_BASE, TIMER_A);
+
+
+
+	//Configuración de los PF4 Y PF0 como botones y activación de las interrupciones
 	ButtonsInit();
 	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOF);
 	GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);

@@ -25,7 +25,7 @@ static QueueHandle_t cola_adc;
 //Provoca el disparo de una conversion (hemos configurado el ADC con "disparo software" (Processor trigger)
 void configADC_DisparaADC(void)
 {
-	ADCProcessorTrigger(ADC0_BASE,1);
+	ADCProcessorTrigger(ADC0_BASE,0);
 }
 
 
@@ -40,25 +40,33 @@ void configADC_IniciaADC(void)
 				// Enable pin PE3 for ADC AIN0|AIN1|AIN2|AIN3
 				GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_3|GPIO_PIN_2|GPIO_PIN_1|GPIO_PIN_0);
 
+				//HABILITAMOS EL GPIOD
+				SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
+				SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOD);
+				// Enable pin PD3 & PD2 for ADC AIN4|AIN4
+				GPIOPinTypeADC(GPIO_PORTD_BASE, GPIO_PIN_3|GPIO_PIN_2);
+
 
 				//CONFIGURAR SECUENCIADOR 1
-				ADCSequenceDisable(ADC0_BASE,1);
+				ADCSequenceDisable(ADC0_BASE,0);
 
 				//Configuramos la velocidad de conversion al maximo (1MS/s)
 				ADCClockConfigSet(ADC0_BASE, ADC_CLOCK_RATE_FULL, 1);
 
-				ADCSequenceConfigure(ADC0_BASE,1,ADC_TRIGGER_PROCESSOR,0);	//Disparo software (processor trigger)
-				ADCSequenceStepConfigure(ADC0_BASE,1,0,ADC_CTL_CH0);
-				ADCSequenceStepConfigure(ADC0_BASE,1,1,ADC_CTL_CH1);
-				ADCSequenceStepConfigure(ADC0_BASE,1,2,ADC_CTL_CH2);
-				ADCSequenceStepConfigure(ADC0_BASE,1,3,ADC_CTL_CH3|ADC_CTL_IE |ADC_CTL_END );	//La ultima muestra provoca la interrupcion
-				ADCSequenceEnable(ADC0_BASE,1); //ACTIVO LA SECUENCIA
+				ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_PROCESSOR,0);	//Disparo software (processor trigger)
+				ADCSequenceStepConfigure(ADC0_BASE,0,0,ADC_CTL_CH0);
+				ADCSequenceStepConfigure(ADC0_BASE,0,1,ADC_CTL_CH1);
+				ADCSequenceStepConfigure(ADC0_BASE,0,2,ADC_CTL_CH2);
+				ADCSequenceStepConfigure(ADC0_BASE,0,3,ADC_CTL_CH3);
+				ADCSequenceStepConfigure(ADC0_BASE,0,4,ADC_CTL_CH4);
+				ADCSequenceStepConfigure(ADC0_BASE,0,5,ADC_CTL_CH5|ADC_CTL_IE |ADC_CTL_END); //La ultima muestra provoca la interrupcion
+				ADCSequenceEnable(ADC0_BASE,0); //ACTIVO LA SECUENCIA
 
 				//Habilita las interrupciones
-				ADCIntClear(ADC0_BASE,1);
-				ADCIntEnable(ADC0_BASE,1);
-				IntPrioritySet(INT_ADC0SS1,configMAX_SYSCALL_INTERRUPT_PRIORITY);
-				IntEnable(INT_ADC0SS1);
+				ADCIntClear(ADC0_BASE,0);
+				ADCIntEnable(ADC0_BASE,0);
+				IntPrioritySet(INT_ADC0SS0,configMAX_SYSCALL_INTERRUPT_PRIORITY);
+				IntEnable(INT_ADC0SS0);
 
 				//Creamos una cola de mensajes para la comunicacion entre la ISR y la tara que llame a configADC_LeeADC(...)
 				cola_adc=xQueueCreate(8,sizeof(MuestrasADC));
@@ -80,14 +88,16 @@ void configADC_ISR(void)
 
 	MuestrasLeidasADC leidas;
 	MuestrasADC finales;
-	ADCIntClear(ADC0_BASE,1);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
-	ADCSequenceDataGet(ADC0_BASE,1,(uint32_t *)&leidas);//COGEMOS LOS DATOS GUARDADOS
+	ADCIntClear(ADC0_BASE,0);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
+	ADCSequenceDataGet(ADC0_BASE,0,(uint32_t *)&leidas);//COGEMOS LOS DATOS GUARDADOS
 
 	//Pasamos de 32 bits a 16 (el conversor es de 12 bits, así que sólo son significativos los bits del 0 al 11)
 	finales.chan1=leidas.chan1;
 	finales.chan2=leidas.chan2;
 	finales.chan3=leidas.chan3;
 	finales.chan4=leidas.chan4;
+    finales.chan5=leidas.chan5;
+    finales.chan6=leidas.chan6;
 
 	//Guardamos en la cola
 	xQueueSendFromISR(cola_adc,&finales,&higherPriorityTaskWoken);

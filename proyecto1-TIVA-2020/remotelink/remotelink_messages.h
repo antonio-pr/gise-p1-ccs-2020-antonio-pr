@@ -54,6 +54,8 @@ typedef struct
     uint16_t chan2;
     uint16_t chan3;
     uint16_t chan4;
+    uint16_t chan5;
+    uint16_t chan6;
 } MESSAGE_ADC_SAMPLE_PARAMETER;
 
 typedef struct
@@ -78,6 +80,8 @@ typedef struct
 {
     bool mode;
 }MESSAGE_BUTTON_MODE_PARAMETER;
+
+
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.
 

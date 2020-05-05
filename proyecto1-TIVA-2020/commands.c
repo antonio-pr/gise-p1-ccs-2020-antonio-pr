@@ -38,6 +38,9 @@
 #include "utils/uartstdio.h"
 
 #include "drivers/rgb.h"
+#include "remotelink/remotelink_messages.h"
+
+#include <remotelink.h>
 
 // ==============================================================================
 // The CPU usage in percent, in 16.16 fixed point format.
@@ -263,7 +266,7 @@ static int Cmd_mode(int argc, char *argv[])
 static int Cmd_intensity(int argc, char *argv[])
 {
     float intensity;
-
+    MESSAGE_LED_PWM_BRIGHTNESS_PARAMETER parametro;
     if (argc != 2)
     {
         //Si los parametros no son suficientes o son demasiados, muestro la ayuda
@@ -272,10 +275,11 @@ static int Cmd_intensity(int argc, char *argv[])
     else
     {
         intensity=strtof(argv[1],NULL);
+        parametro.rIntensity = intensity;
         if ((intensity>=0.0)&&(intensity<=1.0))
         {
             RGBIntensitySet(intensity);
-
+            remotelink_sendMessage(MESSAGE_LED_PWM_BRIGHTNESS,(void *)&parametro,sizeof(parametro));
         }
         else
         {
