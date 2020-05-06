@@ -302,6 +302,8 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            {
                if(parametro.mode)
                {
+                   GPIOADCTriggerDisable(GPIO_PORTF_BASE,GPIO_PIN_0 | GPIO_PIN_4);
+                   GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0,GPIO_BOTH_EDGES);
                    GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
                    IntEnable(INT_GPIOF);
                }else
@@ -314,13 +316,67 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
            }
        }
+       break;
+
+       case MESSAGE_ADC_MODE:
+       {
+           MESSAGE_ADC_MODE_PARAMETER parametro;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               if(parametro.index == 0)
+               {
+                   ADCSequenceDisable(ADC0_BASE,0);
+                   ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_PROCESSOR,0);
+                   ADCSequenceEnable(ADC0_BASE,0);
+               }else if(parametro.index == 1)
+               {
+                   ADCSequenceDisable(ADC0_BASE,0);
+                   ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
+                   GPIOADCTriggerEnable(GPIO_PORTF_BASE,GPIO_PIN_4);
+                   GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_4,GPIO_FALLING_EDGE);
+                   ADCSequenceEnable(ADC0_BASE,0);
+               }else if(parametro.index == 2)
+               {
+                   ADCSequenceDisable(ADC0_BASE,0);
+                   ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
+                   GPIOADCTriggerEnable(GPIO_PORTF_BASE,GPIO_PIN_0);
+                   GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_0,GPIO_FALLING_EDGE);
+                   ADCSequenceEnable(ADC0_BASE,0);
+               }else if(parametro.index == 3)
+               {
+                   ADCSequenceDisable(ADC0_BASE,0);
+                   ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_TIMER,0);
+                   TimerControlTrigger(TIMER2_BASE,TIMER_A,true);
+                   ADCSequenceEnable(ADC0_BASE,0);
+               }
+           }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
+       break;
+
+       case MESSAGE_FACTOR:
+       {
+           MESSAGE_FACTOR_PARAMETER parametro;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               ADCSequenceDisable(ADC0_BASE,0);
+               ADCHardwareOversampleConfigure(ADC0_BASE,parametro.factor);
+               ADCSequenceEnable(ADC0_BASE,0);
+           }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
+       break;
 
        default:
            //mensaje desconocido/no implementado
            status=PROT_ERROR_UNIMPLEMENTED_COMMAND; //Devuelve error.
     }
-
-
     return status;   //Devuelve status
 }
 
@@ -366,11 +422,11 @@ int main(void)
 	SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER2);
 	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_TIMER2);
 	TimerConfigure(TIMER2_BASE, TIMER_CFG_PERIODIC);
+	IntPrioritySet(INT_TIMER2A,configMAX_SYSCALL_INTERRUPT_PRIORITY);
 
 	ui32Period = SysCtlClockGet();
 	TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
-	//TimerEnable(TIMER2_BASE, TIMER_A);
-
+	TimerEnable(TIMER2_BASE, TIMER_A);
 
 
 	//Configuración de los PF4 Y PF0 como botones y activación de las interrupciones
@@ -378,8 +434,8 @@ int main(void)
 	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_GPIOF);
 	GPIOIntClear(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
 	GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0,GPIO_BOTH_EDGES);
-	GPIOIntEnable(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
 	IntPrioritySet(INT_GPIOF, configMAX_SYSCALL_INTERRUPT_PRIORITY);
+	GPIOIntEnable(GPIO_PORTF_BASE,GPIO_PIN_4|GPIO_PIN_0);
 	IntMasterEnable();
 
 	semaforo = xSemaphoreCreateBinary();

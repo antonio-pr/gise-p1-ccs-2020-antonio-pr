@@ -22,6 +22,8 @@ typedef enum {
     MESSAGE_MODE,
     MESSAGE_BUTTON,
     MESSAGE_BUTTON_MODE,
+    MESSAGE_ADC_MODE,
+    MESSAGE_FACTOR,
     //etc, etc...
 } messageTypes;
 
@@ -80,6 +82,16 @@ typedef struct
 {
     bool mode;
 }MESSAGE_BUTTON_MODE_PARAMETER;
+
+typedef struct
+{
+    uint8_t index;
+}MESSAGE_ADC_MODE_PARAMETER;
+
+typedef struct
+{
+    uint32_t factor;
+}MESSAGE_FACTOR_PARAMETER;
 
 
 

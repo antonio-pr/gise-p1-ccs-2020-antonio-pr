@@ -59,7 +59,9 @@ void configADC_IniciaADC(void)
 				ADCSequenceStepConfigure(ADC0_BASE,0,2,ADC_CTL_CH2);
 				ADCSequenceStepConfigure(ADC0_BASE,0,3,ADC_CTL_CH3);
 				ADCSequenceStepConfigure(ADC0_BASE,0,4,ADC_CTL_CH4);
-				ADCSequenceStepConfigure(ADC0_BASE,0,5,ADC_CTL_CH5|ADC_CTL_IE |ADC_CTL_END); //La ultima muestra provoca la interrupcion
+				ADCSequenceStepConfigure(ADC0_BASE,0,5,ADC_CTL_CH5);
+				ADCSequenceStepConfigure(ADC0_BASE,0,6,ADC_CTL_CH4);
+				ADCSequenceStepConfigure(ADC0_BASE,0,7,ADC_CTL_CH5|ADC_CTL_IE |ADC_CTL_END); //La ultima muestra provoca la interrupcion
 				ADCSequenceEnable(ADC0_BASE,0); //ACTIVO LA SECUENCIA
 
 				//Habilita las interrupciones
@@ -89,7 +91,9 @@ void configADC_ISR(void)
 	MuestrasLeidasADC leidas;
 	MuestrasADC finales;
 	ADCIntClear(ADC0_BASE,0);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
+	ADCSequenceDisable(ADC0_BASE,0);
 	ADCSequenceDataGet(ADC0_BASE,0,(uint32_t *)&leidas);//COGEMOS LOS DATOS GUARDADOS
+	ADCSequenceEnable(ADC0_BASE,0);
 
 	//Pasamos de 32 bits a 16 (el conversor es de 12 bits, así que sólo son significativos los bits del 0 al 11)
 	finales.chan1=leidas.chan1;

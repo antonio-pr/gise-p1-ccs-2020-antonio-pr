@@ -28,6 +28,8 @@ typedef struct
 	uint32_t chan4;
 	uint32_t chan5;
 	uint32_t chan6;
+	uint32_t chan7; //ultimos dos canales son dummy
+	uint32_t chan8;
 } MuestrasLeidasADC;
 
 
