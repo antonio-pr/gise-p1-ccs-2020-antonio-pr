@@ -24,6 +24,7 @@ typedef enum {
     MESSAGE_BUTTON_MODE,
     MESSAGE_ADC_MODE,
     MESSAGE_FACTOR,
+    MESSAGE_TIMER_ADC,
     //etc, etc...
 } messageTypes;
 
@@ -93,6 +94,11 @@ typedef struct
     uint32_t factor;
 }MESSAGE_FACTOR_PARAMETER;
 
+typedef struct
+{
+    bool on;
+    uint16_t frecuencia;
+}MESSAGE_TIMER_ADC_PARAMETER;
 
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.

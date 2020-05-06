@@ -332,6 +332,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                {
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
+                   GPIOADCTriggerDisable(GPIO_PORTF_BASE,GPIO_PIN_0);
                    GPIOADCTriggerEnable(GPIO_PORTF_BASE,GPIO_PIN_4);
                    GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_4,GPIO_FALLING_EDGE);
                    ADCSequenceEnable(ADC0_BASE,0);
@@ -339,6 +340,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                {
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
+                   GPIOADCTriggerDisable(GPIO_PORTF_BASE,GPIO_PIN_4);
                    GPIOADCTriggerEnable(GPIO_PORTF_BASE,GPIO_PIN_0);
                    GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_0,GPIO_FALLING_EDGE);
                    ADCSequenceEnable(ADC0_BASE,0);
@@ -347,7 +349,6 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_TIMER,0);
                    TimerControlTrigger(TIMER2_BASE,TIMER_A,true);
-                   ADCSequenceEnable(ADC0_BASE,0);
                }
            }
            else
@@ -372,6 +373,29 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            }
        }
        break;
+
+       case MESSAGE_TIMER_ADC:
+       {
+           MESSAGE_TIMER_ADC_PARAMETER parametro;
+           uint32_t ui32Period;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               if(parametro.on)
+               {
+                   ui32Period = SysCtlClockGet()/parametro.frecuencia;
+                   TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
+                   TimerEnable(TIMER2_BASE, TIMER_A);
+                   ADCSequenceEnable(ADC0_BASE,0);
+               }else
+               {
+                   TimerDisable(TIMER2_BASE, TIMER_A);
+               }
+           }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
 
        default:
            //mensaje desconocido/no implementado
