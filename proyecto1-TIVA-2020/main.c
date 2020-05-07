@@ -50,6 +50,7 @@
 //Globales
 uint32_t g_ui32CPUUsage;
 uint32_t g_ulSystemClock;
+bool resolution=false;
 
 
 
@@ -135,7 +136,6 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
     MuestrasADC muestras;
     MESSAGE_ADC_SAMPLE_PARAMETER parameter;
 
-
     //
     // Bucle infinito, las tareas en FreeRTOS no pueden "acabar", deben "matarse" con la funcion xTaskDelete().
     //
@@ -143,17 +143,27 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
     {
 
         configADC_LeeADC(&muestras);    //Espera y lee muestras del ADC (BLOQUEANTE)
-
-        //Copia los datos en el parametro (es un poco redundante)
-        parameter.chan1=muestras.chan1;
-        parameter.chan2=muestras.chan2;
-        parameter.chan3=muestras.chan3;
-        parameter.chan4=muestras.chan4;
-        parameter.chan5=muestras.chan5;
-        parameter.chan6=muestras.chan6;
-
-        //Encia el mensaje hacia QT
-        remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
+        if(!resolution)
+        {
+            MESSAGE_ADC_SAMPLE_PARAMETER parameter;
+            parameter.chan1=muestras.chan1;
+            parameter.chan2=muestras.chan2;
+            parameter.chan3=muestras.chan3;
+            parameter.chan4=muestras.chan4;
+            parameter.chan5=muestras.chan5;
+            parameter.chan6=muestras.chan6;
+            remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
+        }else
+        {
+            MESSAGE_ADC8_SAMPLE_PARAMETER parameter;
+            parameter.chan1=(muestras.chan1>>4);
+            parameter.chan2=(muestras.chan2>>4);
+            parameter.chan3=(muestras.chan3>>4);
+            parameter.chan4=(muestras.chan4>>4);
+            parameter.chan5=(muestras.chan5>>4);
+            parameter.chan6=(muestras.chan6>>4);
+            remotelink_sendMessage(MESSAGE_ADC8_SAMPLE,(void *)&parameter,sizeof(parameter));
+        }
     }
 }
 
@@ -396,6 +406,26 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
            }
        }
+
+       case MESSAGE_RESOLUTION:
+       {
+           MESSAGE_RESOLUTION_PARAMETER parametro;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               if(!parametro.resolution)//12 bits
+               {
+                   resolution=false;
+               }else//8bits
+               {
+                   resolution=true;
+               }
+           }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
+       break;
 
        default:
            //mensaje desconocido/no implementado
