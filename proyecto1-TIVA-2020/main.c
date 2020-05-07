@@ -323,12 +323,12 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            MESSAGE_ADC_MODE_PARAMETER parametro;
            if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
            {
-               if(parametro.index == 0)
+               if(parametro.index == 0)//SOFTWARE
                {
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_PROCESSOR,0);
                    ADCSequenceEnable(ADC0_BASE,0);
-               }else if(parametro.index == 1)
+               }else if(parametro.index == 1)//GPIO DERECHO
                {
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
@@ -336,7 +336,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                    GPIOADCTriggerEnable(GPIO_PORTF_BASE,GPIO_PIN_4);
                    GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_4,GPIO_FALLING_EDGE);
                    ADCSequenceEnable(ADC0_BASE,0);
-               }else if(parametro.index == 2)
+               }else if(parametro.index == 2)//GPIO IZQUIERDO
                {
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
@@ -344,7 +344,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                    GPIOADCTriggerEnable(GPIO_PORTF_BASE,GPIO_PIN_0);
                    GPIOIntTypeSet(GPIO_PORTF_BASE,GPIO_PIN_0,GPIO_FALLING_EDGE);
                    ADCSequenceEnable(ADC0_BASE,0);
-               }else if(parametro.index == 3)
+               }else if(parametro.index == 3)//TIMER
                {
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_TIMER,0);
