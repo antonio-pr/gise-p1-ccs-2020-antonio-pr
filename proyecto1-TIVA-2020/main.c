@@ -51,6 +51,9 @@
 uint32_t g_ui32CPUUsage;
 uint32_t g_ulSystemClock;
 bool resolution=false;
+bool adc_mode=false;
+
+
 
 
 
@@ -121,20 +124,22 @@ void vApplicationMallocFailedHook (void)
 }
 
 
-
 //*****************************************************************************
 //
 // A continuacion van las tareas...
 //
 //*****************************************************************************
 
-
 //Especificacion 2. Esta tarea no tendria por qu� ir en main.c
 static portTASK_FUNCTION(ADCTask,pvParameters)
 {
 
     MuestrasADC muestras;
+    uint8_t contador=0;
+    MESSAGE_ADC8_PARAMETER muestras8[16];
+    MESSAGE_ADC_SAMPLE_PARAMETER muestras12[8];
     MESSAGE_ADC_SAMPLE_PARAMETER parameter;
+
 
     //
     // Bucle infinito, las tareas en FreeRTOS no pueden "acabar", deben "matarse" con la funcion xTaskDelete().
@@ -143,9 +148,8 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
     {
 
         configADC_LeeADC(&muestras);    //Espera y lee muestras del ADC (BLOQUEANTE)
-        if(!resolution)
+        if(!adc_mode)
         {
-            MESSAGE_ADC_SAMPLE_PARAMETER parameter;
             parameter.chan1=muestras.chan1;
             parameter.chan2=muestras.chan2;
             parameter.chan3=muestras.chan3;
@@ -155,14 +159,38 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
             remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
         }else
         {
-            MESSAGE_ADC8_SAMPLE_PARAMETER parameter;
-            parameter.chan1=(muestras.chan1>>4);
-            parameter.chan2=(muestras.chan2>>4);
-            parameter.chan3=(muestras.chan3>>4);
-            parameter.chan4=(muestras.chan4>>4);
-            parameter.chan5=(muestras.chan5>>4);
-            parameter.chan6=(muestras.chan6>>4);
-            remotelink_sendMessage(MESSAGE_ADC8_SAMPLE,(void *)&parameter,sizeof(parameter));
+            if(!resolution)//12bits
+            {
+                muestras12[contador].chan1=muestras.chan1;
+                muestras12[contador].chan2=muestras.chan2;
+                muestras12[contador].chan3=muestras.chan3;
+                muestras12[contador].chan4=muestras.chan4;
+                muestras12[contador].chan5=muestras.chan5;
+                muestras12[contador].chan6=muestras.chan6;
+                contador++;
+                if(contador==8)
+                {
+                    remotelink_sendMessage(MESSAGE_ADC12,(void *)&muestras12,sizeof(muestras12));
+                    contador=0;
+                }
+
+            }else
+            {
+                muestras8[contador].chan1=(muestras.chan1>>4);
+                muestras8[contador].chan2=(muestras.chan2>>4);
+                muestras8[contador].chan3=(muestras.chan3>>4);
+                muestras8[contador].chan4=(muestras.chan4>>4);
+                muestras8[contador].chan5=(muestras.chan5>>4);
+                muestras8[contador].chan6=(muestras.chan6>>4);
+                contador++;
+
+                if(contador==16)
+                {
+
+                    remotelink_sendMessage(MESSAGE_ADC8,(void *)&muestras8,sizeof(muestras8));
+                    contador=0;
+                }
+            }
         }
     }
 }
@@ -335,11 +363,13 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            {
                if(parametro.index == 0)//SOFTWARE
                {
+                   adc_mode=false;
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_PROCESSOR,0);
                    ADCSequenceEnable(ADC0_BASE,0);
                }else if(parametro.index == 1)//GPIO DERECHO
                {
+                   adc_mode=false;
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
                    GPIOADCTriggerDisable(GPIO_PORTF_BASE,GPIO_PIN_0);
@@ -348,6 +378,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                    ADCSequenceEnable(ADC0_BASE,0);
                }else if(parametro.index == 2)//GPIO IZQUIERDO
                {
+                   adc_mode=false;
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_EXTERNAL,0);
                    GPIOADCTriggerDisable(GPIO_PORTF_BASE,GPIO_PIN_4);
@@ -356,6 +387,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                    ADCSequenceEnable(ADC0_BASE,0);
                }else if(parametro.index == 3)//TIMER
                {
+                   adc_mode=true;
                    ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_TIMER,0);
                    TimerControlTrigger(TIMER2_BASE,TIMER_A,true);
