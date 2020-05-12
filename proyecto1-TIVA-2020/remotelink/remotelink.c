@@ -32,6 +32,7 @@
 static uint8_t Rxframe[MAX_FRAME_SIZE];	//Usar una global permite ahorrar pila en la tarea de RX.
 static uint8_t Txframe[MAX_FRAME_SIZE]; //Usar una global permite ahorrar pila en las tareas, pero hay que tener cuidado al transmitir desde varias tareas!!!!
 static uint32_t gRemoteProtocolErrors=0;
+static SemaphoreHandle_t mutex=NULL;
 
 // TODO
 //Ojo!! TxFrame es global (para ahorrar memoria de pila en las tareas) --> Se deben tomar precauciones al usar esta funcion varias tareas
@@ -40,6 +41,7 @@ static uint32_t gRemoteProtocolErrors=0;
 // "TODO" (por hacer)
 int32_t remotelink_sendMessage(uint8_t message_type,void *parameter,int32_t paramsize)
 {
+    xSemaphoreTake(mutex,portMAX_DELAY);
     int32_t numdatos;
 
     numdatos=create_frame(Txframe,message_type,parameter,paramsize,MAX_FRAME_SIZE);
@@ -47,7 +49,7 @@ int32_t remotelink_sendMessage(uint8_t message_type,void *parameter,int32_t para
     {
         USBSerialWrite(Txframe,numdatos,portMAX_DELAY);
     }
-
+    xSemaphoreGive(mutex);
     return numdatos;
 }
 
@@ -199,6 +201,8 @@ BaseType_t remotelink_init(int32_t remotelink_stack, int32_t remotelink_priority
 
     //Instala la callback...
     remotelink_messageReceived=message_receive_callback;
+
+    mutex=xSemaphoreCreateMutex();
     //
     // Crea la tarea que gestiona los comandos USB (definidos en CommandProcessingTask)
     //

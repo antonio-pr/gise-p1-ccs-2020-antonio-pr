@@ -28,6 +28,7 @@ typedef enum {
     MESSAGE_RESOLUTION,
     MESSAGE_ADC8,
     MESSAGE_ADC12,
+    MESSAGE_SIMULATION,
     //etc, etc...
 } messageTypes;
 
@@ -72,7 +73,7 @@ typedef struct
     uint8_t chan4;
     uint8_t chan5;
     uint8_t chan6;
-} MESSAGE_ADC8_PARAMETER;
+}MESSAGE_ADC8_PARAMETER;
 
 typedef struct
 {
@@ -118,6 +119,10 @@ typedef struct
     bool resolution;
 }MESSAGE_RESOLUTION_PARAMETER;
 
+typedef struct
+{
+    bool simulation;
+}MESSAGE_SIMULATION_PARAMETER;
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.
 

@@ -35,6 +35,7 @@
 
 #include <remotelink.h>
 #include <serialprotocol.h>
+#include<math.h>
 
 
 //parametros de funcionamiento de la tareas
@@ -47,11 +48,14 @@
 #define BUTTON_TASK_STACK (256)
 #define BUTTON_TASK_PRIORITY (tskIDLE_PRIORITY+1)
 
+
 //Globales
 uint32_t g_ui32CPUUsage;
 uint32_t g_ulSystemClock;
 bool resolution=false;
 bool adc_mode=false;
+bool simulation=false;
+uint8_t contador=0;
 
 
 
@@ -129,13 +133,23 @@ void vApplicationMallocFailedHook (void)
 // A continuacion van las tareas...
 //
 //*****************************************************************************
+//Función
+uint16_t simulate10bitADCsample(uint16_t canal)
+{
+    static uint16_t i[6] ={511,511,511,511,511,511};
+    double a=3.0;
+
+    canal = (canal % 6) +1;
+    i[canal-1]++;
+    return (1024.0*(0.46999999999*cos(canal*(a+0.14159265358979323846)*(i[canal-1]%512)/512.0)+0.49999999+0.0299999999*(rand()%200-100)/100.0));
+}
 
 //Especificacion 2. Esta tarea no tendria por quï¿½ ir en main.c
 static portTASK_FUNCTION(ADCTask,pvParameters)
 {
 
     MuestrasADC muestras;
-    uint8_t contador=0;
+
     MESSAGE_ADC8_PARAMETER muestras8[16];
     MESSAGE_ADC_SAMPLE_PARAMETER muestras12[8];
     MESSAGE_ADC_SAMPLE_PARAMETER parameter;
@@ -148,7 +162,7 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
     {
 
         configADC_LeeADC(&muestras);    //Espera y lee muestras del ADC (BLOQUEANTE)
-        if(!adc_mode)
+        if(!adc_mode)                   //Modo Software y GPIO
         {
             parameter.chan1=muestras.chan1;
             parameter.chan2=muestras.chan2;
@@ -156,24 +170,37 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
             parameter.chan4=muestras.chan4;
             parameter.chan5=muestras.chan5;
             parameter.chan6=muestras.chan6;
+
+
             remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
-        }else
+        }else//Modo Timer
         {
             if(!resolution)//12bits
             {
-                muestras12[contador].chan1=muestras.chan1;
-                muestras12[contador].chan2=muestras.chan2;
-                muestras12[contador].chan3=muestras.chan3;
-                muestras12[contador].chan4=muestras.chan4;
-                muestras12[contador].chan5=muestras.chan5;
-                muestras12[contador].chan6=muestras.chan6;
-                contador++;
-                if(contador==8)
+                if(simulation)
                 {
-                    remotelink_sendMessage(MESSAGE_ADC12,(void *)&muestras12,sizeof(muestras12));
-                    contador=0;
-                }
+                    muestras12[contador].chan1=simulate10bitADCsample(1);
+                    muestras12[contador].chan2=simulate10bitADCsample(2);
+                    muestras12[contador].chan3=simulate10bitADCsample(3);
+                    muestras12[contador].chan4=simulate10bitADCsample(4);
+                    muestras12[contador].chan5=simulate10bitADCsample(5);
+                    muestras12[contador].chan6=simulate10bitADCsample(6);
+                }else
+                {
 
+                    muestras12[contador].chan1=muestras.chan1;
+                    muestras12[contador].chan2=muestras.chan2;
+                    muestras12[contador].chan3=muestras.chan3;
+                    muestras12[contador].chan4=muestras.chan4;
+                    muestras12[contador].chan5=muestras.chan5;
+                    muestras12[contador].chan6=muestras.chan6;
+                }
+                    contador++;
+                    if(contador==8)
+                    {
+                        remotelink_sendMessage(MESSAGE_ADC12,(void *)&muestras12,sizeof(muestras12));
+                        contador=0;
+                    }
             }else
             {
                 muestras8[contador].chan1=(muestras.chan1>>4);
@@ -424,10 +451,20 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            {
                if(parametro.on)
                {
-                   ui32Period = SysCtlClockGet()/parametro.frecuencia;
-                   TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
-                   TimerEnable(TIMER2_BASE, TIMER_A);
-                   ADCSequenceEnable(ADC0_BASE,0);
+                   if(simulation)
+                   {
+                       ui32Period = SysCtlClockGet()/500;
+                       TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
+                       TimerEnable(TIMER2_BASE, TIMER_A);
+                       ADCSequenceEnable(ADC0_BASE,0);
+                   }else
+                   {
+                       ui32Period = SysCtlClockGet()/parametro.frecuencia;
+                       TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
+                       TimerEnable(TIMER2_BASE, TIMER_A);
+                       ADCSequenceEnable(ADC0_BASE,0);
+                   }
+
                }else
                {
                    TimerDisable(TIMER2_BASE, TIMER_A);
@@ -438,6 +475,7 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
            }
        }
+       break;
 
        case MESSAGE_RESOLUTION:
        {
@@ -447,11 +485,42 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
                if(!parametro.resolution)//12 bits
                {
                    resolution=false;
+                   contador=0;
                }else//8bits
                {
                    resolution=true;
+                   contador=0;
                }
            }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
+       break;
+       case MESSAGE_SIMULATION:
+       {
+           uint32_t ui32Period;
+           MESSAGE_SIMULATION_PARAMETER parametro;
+           adc_mode=true;
+           resolution=false;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               if(parametro.simulation)
+               {
+                   simulation=true;
+                   adc_mode=true;
+                   resolution=false;
+                   ADCSequenceDisable(ADC0_BASE,0);
+                   ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_TIMER,0);
+                   TimerControlTrigger(TIMER2_BASE,TIMER_A,true);
+               }else
+               {
+                   simulation=false;
+                   TimerDisable(TIMER2_BASE, TIMER_A);
+               }
+           }
+
            else
            {
                status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
