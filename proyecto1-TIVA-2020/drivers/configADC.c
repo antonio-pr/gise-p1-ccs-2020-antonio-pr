@@ -47,7 +47,7 @@ void configADC_IniciaADC(void)
 				GPIOPinTypeADC(GPIO_PORTD_BASE, GPIO_PIN_3|GPIO_PIN_2);
 
 
-				//CONFIGURAR SECUENCIADOR 1
+				//CONFIGURAR SECUENCIADOR 0
 				ADCSequenceDisable(ADC0_BASE,0);
 
 				//Configuramos la velocidad de conversion al maximo (1MS/s)
@@ -91,6 +91,7 @@ void configADC_ISR(void)
 	MuestrasLeidasADC leidas;
 	MuestrasADC finales;
 	ADCIntClear(ADC0_BASE,0);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
+
 	ADCSequenceDisable(ADC0_BASE,0);
 	ADCSequenceDataGet(ADC0_BASE,0,(uint32_t *)&leidas);//COGEMOS LOS DATOS GUARDADOS
 	ADCSequenceEnable(ADC0_BASE,0);

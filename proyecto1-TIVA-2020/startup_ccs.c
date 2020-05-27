@@ -64,6 +64,7 @@ extern void configADC_ISR(void);
 extern void UARTStdioIntHandler(void);
 extern void USB0DeviceIntHandler(void);
 extern void RutinaBotones(void);
+extern void ADC_SS3_RTI(void);
 //*****************************************************************************
 //
 // The vector table.  Note that the proper constructs must be placed on this to
@@ -108,7 +109,7 @@ void (* const g_pfnVectors[])(void) =
     configADC_ISR,                          // ADC Sequence 0
     IntDefaultHandler,                      // ADC Sequence 1
     IntDefaultHandler,                      // ADC Sequence 2
-    IntDefaultHandler,                      // ADC Sequence 3
+    ADC_SS3_RTI,                      // ADC Sequence 3
     IntDefaultHandler,                      // Watchdog timer
     IntDefaultHandler,                      // Timer 0 subtimer A
     IntDefaultHandler,                      // Timer 0 subtimer B

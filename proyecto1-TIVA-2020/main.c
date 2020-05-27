@@ -11,6 +11,7 @@
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
 #include "inc/hw_ints.h"
+#include "inc/hw_adc.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pin_map.h"
 #include "driverlib/rom.h"
@@ -19,6 +20,7 @@
 #include "driverlib/interrupt.h"
 #include "driverlib/adc.h"
 #include "driverlib/timer.h"
+#include "driverlib/udma.h"
 #include "drivers/buttons.h"
 #include "utils/uartstdio.h"
 #include "drivers/buttons.h"
@@ -27,6 +29,7 @@
 #include "queue.h"
 #include "semphr.h"
 #include "utils/cpu_usage.h"
+#include "dma.h"
 
 #include "drivers/rgb.h"
 #include "drivers/configADC.h"
@@ -57,7 +60,7 @@ bool adc_mode=false;
 bool simulation=false;
 uint8_t contador=0;
 
-
+extern uint32_t buffer[512];
 
 
 
@@ -221,6 +224,17 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
         }
     }
 }
+
+static portTASK_FUNCTION(ADC_uDMATask,pvParameters)
+{
+    //MESSAGE_DATA_ADQ_PARAMETER parametro[512];
+    while(1)
+    {
+        Espera_DMA(); //Bloqueante
+        remotelink_sendMessage(MESSAGE_DATA_ADQ,(void *)&buffer,sizeof(buffer));
+    }
+}
+
 
 static portTASK_FUNCTION(ButtonTask,pvParameters)
 {
@@ -498,9 +512,9 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
            }
        }
        break;
+
        case MESSAGE_SIMULATION:
        {
-           uint32_t ui32Period;
            MESSAGE_SIMULATION_PARAMETER parametro;
            adc_mode=true;
            resolution=false;
@@ -528,6 +542,58 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
        }
        break;
 
+       case MESSAGE_DATA_ADQ_MODE:
+       {
+           //uint32_t ui32Period;
+           MESSAGE_DATA_ADQ_MODE_PARAMETER parametro;
+           adc_mode=true;
+           resolution=false;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               if(parametro.mode)//ADQUISICIÓN DE DATOS
+               {
+
+               }else //OSCILOSCOPIO
+               {
+                   //CONFIGURAR SECUENCIADOR 3
+                   ADCSequenceDisable(ADC0_BASE,3);
+
+                   ADCClockConfigSet(ADC0_BASE, ADC_CLOCK_RATE_FULL, 1);
+
+                   ADCSequenceConfigure(ADC0_BASE,3,ADC_TRIGGER_TIMER,0);
+                   ADCSequenceStepConfigure(ADC0_BASE,3,0,ADC_CTL_CH0|ADC_CTL_IE |ADC_CTL_END);
+                   TimerControlTrigger(TIMER2_BASE,TIMER_A,true);
+                   ADCSequenceEnable(ADC0_BASE,3);
+
+
+                   TimerLoadSet(TIMER2_BASE, TIMER_A, (SysCtlClockGet()/500) -1);
+
+                   //Habilita las interrupciones
+                   ADCIntClear(ADC0_BASE,3);
+                   ADCIntEnable(ADC0_BASE,3);
+                   IntPrioritySet(INT_ADC0SS3,configMAX_SYSCALL_INTERRUPT_PRIORITY);
+               }
+           }
+           else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+       }
+       break;
+
+       case MESSAGE_DATA_ADQ_CAPTURE:
+       {
+           IntEnable(INT_ADC0SS3);
+           uDMAChannelTransferSet(MI_CANAL_DMA_A | UDMA_PRI_SELECT,
+                                  UDMA_MODE_BASIC,
+                                  (void *)(ADC0_BASE + (ADC_O_SSFIFO3)),
+                                  ((void*)buffer), sizeof(buffer)/sizeof(uint32_t));
+           uDMAChannelEnable(MI_CANAL_DMA_A);
+           TimerEnable(TIMER2_BASE, TIMER_A);
+       }
+       break;
+
+
        default:
            //mensaje desconocido/no implementado
            status=PROT_ERROR_UNIMPLEMENTED_COMMAND; //Devuelve error.
@@ -543,7 +609,6 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
 //*****************************************************************************
 int main(void)
 {
-    uint32_t ui32Period;
 	//
 	// Set the clocking to run at 40 MHz from the PLL.
 	//
@@ -577,11 +642,7 @@ int main(void)
 	SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER2);
 	SysCtlPeripheralSleepEnable(SYSCTL_PERIPH_TIMER2);
 	TimerConfigure(TIMER2_BASE, TIMER_CFG_PERIODIC);
-	IntPrioritySet(INT_TIMER2A,configMAX_SYSCALL_INTERRUPT_PRIORITY);
-
-	ui32Period = SysCtlClockGet();
-	TimerLoadSet(TIMER2_BASE, TIMER_A, ui32Period -1);
-	TimerEnable(TIMER2_BASE, TIMER_A);
+	//IntPrioritySet(INT_TIMER2A,configMAX_SYSCALL_INTERRUPT_PRIORITY);
 
 
 	//Configuración de los PF4 Y PF0 como botones y activación de las interrupciones
@@ -620,7 +681,13 @@ int main(void)
 
 	//Especificacion 2: Inicializa el ADC y crea una tarea...
 	configADC_IniciaADC();
+	//DMA_IniciaDMA();
     if((xTaskCreate(ADCTask, (portCHAR *)"ADC", ADC_TASK_STACK,NULL,ADC_TASK_PRIORITY, NULL) != pdTRUE))
+    {
+        while(1);
+    }
+
+    if((xTaskCreate(ADC_uDMATask, (portCHAR *)"ADC_uDMA", ADC_TASK_STACK,NULL,ADC_TASK_PRIORITY, NULL) != pdTRUE))
     {
         while(1);
     }

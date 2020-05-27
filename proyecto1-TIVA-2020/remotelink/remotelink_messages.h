@@ -29,6 +29,9 @@ typedef enum {
     MESSAGE_ADC8,
     MESSAGE_ADC12,
     MESSAGE_SIMULATION,
+    MESSAGE_DATA_ADQ_MODE,
+    MESSAGE_DATA_ADQ,
+    MESSAGE_DATA_ADQ_CAPTURE,
     //etc, etc...
 } messageTypes;
 
@@ -123,6 +126,16 @@ typedef struct
 {
     bool simulation;
 }MESSAGE_SIMULATION_PARAMETER;
+
+typedef struct
+{
+    bool mode;
+}MESSAGE_DATA_ADQ_MODE_PARAMETER;
+
+typedef struct
+{
+    uint32_t muestras;
+}MESSAGE_DATA_ADQ_PARAMETER;
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.
 
