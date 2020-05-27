@@ -174,7 +174,6 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
             parameter.chan5=muestras.chan5;
             parameter.chan6=muestras.chan6;
 
-
             remotelink_sendMessage(MESSAGE_ADC_SAMPLE,(void *)&parameter,sizeof(parameter));
         }else//Modo Timer
         {
@@ -227,11 +226,22 @@ static portTASK_FUNCTION(ADCTask,pvParameters)
 
 static portTASK_FUNCTION(ADC_uDMATask,pvParameters)
 {
-    //MESSAGE_DATA_ADQ_PARAMETER parametro[512];
+    MESSAGE_DATA_ADQ_PARAMETER parametro[32];
+    int i,j;
     while(1)
     {
         Espera_DMA(); //Bloqueante
-        remotelink_sendMessage(MESSAGE_DATA_ADQ,(void *)&buffer,sizeof(buffer));
+
+
+        for(i=0;i<512/32;i++)
+        {
+            for(j=0;j<32;j++)
+            {
+                parametro[j].muestras=(uint16_t)buffer[j+(i*32)]>>4;
+            }
+            remotelink_sendMessage(MESSAGE_DATA_ADQ,(void *)&parametro,sizeof(parametro));
+          //  vTaskDelay(1);
+        }
     }
 }
 
@@ -544,34 +554,53 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
 
        case MESSAGE_DATA_ADQ_MODE:
        {
-           //uint32_t ui32Period;
            MESSAGE_DATA_ADQ_MODE_PARAMETER parametro;
-           adc_mode=true;
-           resolution=false;
+
            if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
            {
-               if(parametro.mode)//ADQUISICIÓN DE DATOS
+               if(parametro.mode==0)//ADQUISICIÓN DE DATOS
                {
+                   ADCSequenceDisable(ADC0_BASE,3);
+                   ADCSequenceDisable(ADC0_BASE,0);
 
+                   ADCSequenceConfigure(ADC0_BASE,0,ADC_TRIGGER_PROCESSOR,0);   //Disparo software (processor trigger)
+                   ADCSequenceStepConfigure(ADC0_BASE,0,0,ADC_CTL_CH0);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,1,ADC_CTL_CH1);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,2,ADC_CTL_CH2);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,3,ADC_CTL_CH3);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,4,ADC_CTL_CH4);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,5,ADC_CTL_CH5);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,6,ADC_CTL_CH4);
+                   ADCSequenceStepConfigure(ADC0_BASE,0,7,ADC_CTL_CH5|ADC_CTL_IE |ADC_CTL_END); //La ultima muestra provoca la interrupcion
+                   ADCSequenceEnable(ADC0_BASE,0); //ACTIVO LA SECUENCIA
+
+                   //Habilita las interrupciones
+                   ADCIntClear(ADC0_BASE,0);
+                   ADCIntDisable(ADC0_BASE,3);
+                   ADCIntEnable(ADC0_BASE,0);
+                   IntEnable(INT_ADC0SS0);
                }else //OSCILOSCOPIO
                {
                    //CONFIGURAR SECUENCIADOR 3
+                   ADCSequenceDisable(ADC0_BASE,0);
                    ADCSequenceDisable(ADC0_BASE,3);
 
                    ADCClockConfigSet(ADC0_BASE, ADC_CLOCK_RATE_FULL, 1);
 
                    ADCSequenceConfigure(ADC0_BASE,3,ADC_TRIGGER_TIMER,0);
-                   ADCSequenceStepConfigure(ADC0_BASE,3,0,ADC_CTL_CH0|ADC_CTL_IE |ADC_CTL_END);
+                   ADCSequenceStepConfigure(ADC0_BASE,3,0,ADC_CTL_CH1|ADC_CTL_IE |ADC_CTL_END);
                    TimerControlTrigger(TIMER2_BASE,TIMER_A,true);
                    ADCSequenceEnable(ADC0_BASE,3);
 
 
-                   TimerLoadSet(TIMER2_BASE, TIMER_A, (SysCtlClockGet()/500) -1);
+
 
                    //Habilita las interrupciones
+                   ADCIntDisable(ADC0_BASE,0);
                    ADCIntClear(ADC0_BASE,3);
                    ADCIntEnable(ADC0_BASE,3);
                    IntPrioritySet(INT_ADC0SS3,configMAX_SYSCALL_INTERRUPT_PRIORITY);
+                   IntEnable(INT_ADC0SS3);
                }
            }
            else
@@ -583,13 +612,23 @@ static int32_t messageReceived(uint8_t message_type, void *parameters, int32_t p
 
        case MESSAGE_DATA_ADQ_CAPTURE:
        {
-           IntEnable(INT_ADC0SS3);
-           uDMAChannelTransferSet(MI_CANAL_DMA_A | UDMA_PRI_SELECT,
-                                  UDMA_MODE_BASIC,
-                                  (void *)(ADC0_BASE + (ADC_O_SSFIFO3)),
-                                  ((void*)buffer), sizeof(buffer)/sizeof(uint32_t));
-           uDMAChannelEnable(MI_CANAL_DMA_A);
-           TimerEnable(TIMER2_BASE, TIMER_A);
+           MESSAGE_DATA_ADQ_CAPTURE_PARAMETER parametro;
+           if (check_and_extract_command_param(parameters, parameterSize, &parametro, sizeof(parametro))>0)
+           {
+               IntEnable(INT_ADC0SS3);
+               uDMAChannelTransferSet(MI_CANAL_DMA_A | UDMA_PRI_SELECT,
+                                      UDMA_MODE_BASIC,
+                                      (void *)(ADC0_BASE + (ADC_O_SSFIFO3)),
+                                      ((void*)buffer), sizeof(buffer)/sizeof(uint32_t));
+               uDMAChannelEnable(MI_CANAL_DMA_A);
+
+               TimerLoadSet(TIMER2_BASE, TIMER_A, (SysCtlClockGet()/parametro.frecuencia) -1);
+               TimerEnable(TIMER2_BASE, TIMER_A);
+           }else
+           {
+               status=PROT_ERROR_INCORRECT_PARAM_SIZE; //Devuelve un error
+           }
+
        }
        break;
 
@@ -681,7 +720,7 @@ int main(void)
 
 	//Especificacion 2: Inicializa el ADC y crea una tarea...
 	configADC_IniciaADC();
-	//DMA_IniciaDMA();
+	DMA_IniciaDMA();
     if((xTaskCreate(ADCTask, (portCHAR *)"ADC", ADC_TASK_STACK,NULL,ADC_TASK_PRIORITY, NULL) != pdTRUE))
     {
         while(1);

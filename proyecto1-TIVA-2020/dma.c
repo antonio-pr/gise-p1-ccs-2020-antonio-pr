@@ -114,15 +114,12 @@ void Espera_DMA(void)
 void ADC_SS3_RTI(void)
 {
     portBASE_TYPE higherPriorityTaskWoken=pdFALSE;
-    uint32_t ui32Flags;
 
     ADCIntClear(ADC0_BASE,3);//LIMPIAMOS EL FLAG DE INTERRUPCIONES
 
-    ui32Flags=uDMAIntStatus();
-    uDMAIntClear(ui32Flags);
 
-    if(ui32Flags & (1<<MI_CANAL_DMA_A))
-    {
+
+
         /*uDMAChannelTransferSet(MI_CANAL_DMA_A | UDMA_PRI_SELECT,
                                        UDMA_MODE_BASIC,
                                        (void *)(ADC0_BASE + (ADC_O_SSFIFO3)),
@@ -131,7 +128,7 @@ void ADC_SS3_RTI(void)
         uDMAChannelEnable(MI_CANAL_DMA_A);*/
         TimerDisable(TIMER2_BASE, TIMER_A);
         xSemaphoreGiveFromISR(semaforo_dma,&higherPriorityTaskWoken);
-    }
+
     portEND_SWITCHING_ISR(higherPriorityTaskWoken);
 }
 

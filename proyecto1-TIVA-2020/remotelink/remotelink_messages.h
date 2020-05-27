@@ -134,8 +134,13 @@ typedef struct
 
 typedef struct
 {
-    uint32_t muestras;
+    uint16_t muestras;
 }MESSAGE_DATA_ADQ_PARAMETER;
+
+typedef struct
+{
+    uint32_t frecuencia;
+}MESSAGE_DATA_ADQ_CAPTURE_PARAMETER;
 
 #pragma pack()  //...Pero solo para los comandos que voy a intercambiar, no para el resto.
 
